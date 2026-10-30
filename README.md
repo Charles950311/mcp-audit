@@ -2,11 +2,21 @@
 
 对 MCP（Model Context Protocol）服务器配置做安全审计的零依赖 CLI。2026 年 MCP 已成为 AI Agent 接工具的事实标准，但安全实践跟不上扩张——本工具把"配置里最容易翻车的问题"变成一条命令：**静态审计配置文件，还可选地对远程端点做实弹探测**。
 
-对应计划书主线 A2（垂直 MCP/AI Agent 工具）的种子项目：开源本身即分发渠道（GitHub + npm + `npx mcp-config-scan`），是被动获客路径的验证品。
+对应计划书主线 A2（垂直 MCP/AI Agent 工具）的种子项目：开源本身即分发渠道（GitHub → `npx github:Charles950311/mcp-audit`），是被动获客路径的验证品。
 
-> 命名映射：npm 包名 **`mcp-config-scan`**（`mcp-audit` / `mcp-audit-cli` 均已被注册占用），CLI 命令与品牌名仍是 **`mcp-audit`**。`npx mcp-config-scan` 与 `npm i -g mcp-config-scan` 后敲 `mcp-audit` 均可。
+> 分发方式：当前以 **GitHub 直装**为主（见下）；npm registry 发布（包名 `mcp-config-scan` 已检重可用）暂缓，有 npm 账号后执行一次 `npm publish` 即可补齐。
 
 ## 使用
+
+**免安装（推荐，直接从 GitHub 运行）**
+
+```bash
+npx github:Charles950311/mcp-audit                     # 最新 main 分支
+npx github:Charles950311/mcp-audit#v0.4.0              # 锁定到 v0.4.0 tag
+npx github:Charles950311/mcp-audit --probe cfg.json    # 全参数透传
+```
+
+**本地运行（克隆本仓库后）**
 
 ```bash
 node bin/mcp-audit.js                    # 扫描常见位置（.mcp.json、Claude Desktop、Cursor）
@@ -68,12 +78,14 @@ npm test   # 规则锚点 + fixtures 评分（clean→A/100，dirty→F/≤40）
 
 探测测试全部离线：SSE 帧/流解析为纯函数单测，传输行为用 Node 内置 `http` 起本地服务器覆盖（streamable 8 场景 + legacy SSE 7 场景：匿名工具列表、401、403、超时、HTML、405 回退、流提前结束、双传输皆拒）。
 
-## 发布清单（首次上架待办）
+## 发布清单
 
-- [x] 建 GitHub 仓库并推本目录（`Charles950311/mcp-audit`），package.json `repository` / SARIF `informationUri` 已填
-- [ ] `npm login` → `npm publish`（包名 `mcp-config-scan` 已检重可用，2026-10 查询）
-- [ ] 打 tag `v0.4.0` → GitHub Action 页把 action 上架 marketplace
-- [ ] README 换算仓库 URL 后，在 topics 加 `mcp` `security` `llm`（仓库 Settings 里加）
+- [x] GitHub 仓库已上线并推送（[Charles950311/mcp-audit](https://github.com/Charles950311/mcp-audit)），CI 通过，`v0.4.0` tag 已推
+- [x] package.json `repository` / SARIF `informationUri` 已填
+- [x] 分发走 `npx github:Charles950311/mcp-audit`（README 使用章节已以此为主）
+- [ ] npm registry 发布（包名 `mcp-config-scan` 已检重可用）——暂缓，待有 npm 账号后 `npm login && npm publish`
+- [ ] GitHub Release 页（基于已推的 v0.4.0 tag，写 release notes）——可选，增强发现性
+- [ ] action 上架 marketplace（仓库 Settings 里勾选）
 
 ## 路线图
 
