@@ -1,0 +1,23 @@
+# Copy this into any repo that contains MCP configs, as
+# .github/workflows/mcp-audit.yml — after publishing the action.
+name: MCP config audit
+
+on:
+  push:
+    paths: ["**/.mcp.json", "**/mcp.json", "claude_desktop_config.json"]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Charles950311/mcp-audit@v0
+        with:
+          files: ".mcp.json"
+          fail-high: "true"

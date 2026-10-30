@@ -1,0 +1,48 @@
+name: "mcp-audit"
+description: "Audit MCP server configs for security risks (secrets on disk, over-broad filesystem, unpinned packages, insecure transport, pipe-to-shell)."
+branding:
+  icon: "shield"
+  color: "orange"
+
+inputs:
+  files:
+    description: "Config files to scan (space separated). Empty = scan common locations."
+    required: false
+    default: ""
+  fail-high:
+    description: "Also fail on high-severity findings (not just critical)."
+    required: false
+    default: "true"
+  probe:
+    description: "Live-probe remote (url) servers over HTTP: MCP handshake + anonymous tools/list check. Makes real network requests from the runner."
+    required: false
+    default: "false"
+  timeout:
+    description: "Probe timeout in milliseconds (used with probe)."
+    required: false
+    default: "5000"
+  upload-sarif:
+    description: "Upload SARIF results to GitHub code scanning."
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Run mcp-audit
+      shell: bash
+      run: |
+        FLAGS=""
+        if [ "${{ inputs.fail-high }}" = "true" ]; then FLAGS="$FLAGS --fail-high"; fi
+        if [ "${{ inputs.probe }}" = "true" ]; then FLAGS="$FLAGS --probe --timeout ${{ inputs.timeout }}"; fi
+        node "${{ github.action_path }}/bin/mcp-audit.js" $FLAGS --sarif ${{ inputs.files }} > mcp-audit.sarif
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: mcp-audit.sarif

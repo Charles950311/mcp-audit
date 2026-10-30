@@ -1,0 +1,40 @@
+{
+  "name": "mcp-config-scan",
+  "version": "0.4.0",
+  "description": "Audit Model Context Protocol (MCP) server configs for security risks: secrets on disk, over-broad filesystem access, unpinned packages, insecure transport, pipe-to-shell installs — plus opt-in live probing of remote MCP endpoints (anonymous tool listing, reachability, handshake health).",
+  "bin": {
+    "mcp-audit": "bin/mcp-audit.js"
+  },
+  "scripts": {
+    "test": "node test/rules.test.js && node test/sarif.test.js && node test/probe.test.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "audit",
+    "llm",
+    "ai-agents",
+    "appsec",
+    "sarif"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Charles950311/mcp-audit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Charles950311/mcp-audit/issues"
+  },
+  "homepage": "https://github.com/Charles950311/mcp-audit#readme",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

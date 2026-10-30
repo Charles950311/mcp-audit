@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "project-files": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@0.6.2", "/Users/me/work/proj"]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    },
+    "remote-api": {
+      "url": "https://mcp.example.com/sse"
+    }
+  }
+}

