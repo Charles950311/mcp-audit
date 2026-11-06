@@ -10,10 +10,12 @@
  *     --probe           also probe remote (url) servers over HTTP: handshake + anonymous
  *                       tools/list check. Makes real network requests — opt-in only.
  *     --timeout <ms>    probe timeout in milliseconds (default 5000)
+ *     --version         print version and exit
  *
- * With no file arguments, scans the common config locations for Claude Desktop,
- * Cursor, and project-level .mcp.json.
+ * With no file arguments, discovers configs for Claude Desktop/Code, Cursor,
+ * VS Code, Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, and Codex CLI.
  */
+const pkg = require("../package.json");
 const { resolveTargets, loadAll } = require("../lib/scan");
 const { auditAll, sortFindings, scoreFindings } = require("../lib/rules");
 const { toSarif } = require("../lib/sarif");
@@ -44,6 +46,10 @@ const PROBE_LABELS = {
 
 async function main() {
   const { flags, targets, timeout } = parseArgs(process.argv.slice(2));
+  if (flags.has("--version")) {
+    console.log(pkg.version);
+    return 0;
+  }
   const jsonMode = flags.has("--json");
   const sarifMode = flags.has("--sarif");
   const failHigh = flags.has("--fail-high");
@@ -54,7 +60,7 @@ async function main() {
     const empty = { files: [], findings: [], probes: [], score: 100, grade: "A" };
     if (sarifMode) console.log(JSON.stringify(toSarif([], empty)));
     else if (jsonMode) console.log(JSON.stringify(empty));
-    else console.log("mcp-audit: no MCP config files found (checked .mcp.json, claude_desktop_config.json, ~/.claude, ~/Library, %APPDATA%, ~/.cursor)");
+    else console.log("mcp-audit: no MCP config files found (checked Claude Desktop/Code, Cursor, VS Code, Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, Codex CLI, and project .mcp.json)");
     return 0;
   }
 

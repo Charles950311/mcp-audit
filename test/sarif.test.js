@@ -43,4 +43,25 @@ assert.ok(toSarif([{ file: "C:\\x.json", servers: [] }], {
   score: 80, grade: "B",
 }).runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri === "C:/x.json", "反斜杠应转为 /");
 
+// ── v0.5：partialFingerprints 与真实行号 ──
+
+for (const res of run.results) {
+  const fp = res.partialFingerprints && res.partialFingerprints["mcp-audit/v1"];
+  assert.ok(fp && /^[0-9a-f]{40}$/.test(fp), "每个 result 应带 sha1 指纹: " + JSON.stringify(res.partialFingerprints));
+  const line = res.locations[0].physicalLocation.region.startLine;
+  assert.ok(Number.isInteger(line) && line >= 1, "startLine 应为正整数");
+}
+assert.ok(
+  run.results.some((r) => r.locations[0].physicalLocation.region.startLine > 1),
+  "dirty 夹具的 server 定义应至少命中一个非首行位置"
+);
+// 指纹稳定性：同输入两次生成一致
+const dirty2 = auditAll([loadFile(path.join(__dirname, "..", "fixtures", "dirty.json"))]);
+const sarif2 = toSarif([dirty2], dirty2);
+assert.deepStrictEqual(
+  sarif2.runs[0].results.map((r) => r.partialFingerprints["mcp-audit/v1"]).sort(),
+  run.results.map((r) => r.partialFingerprints["mcp-audit/v1"]).sort(),
+  "指纹应跨运行稳定"
+);
+
 console.log("ALL SARIF TESTS PASSED");
