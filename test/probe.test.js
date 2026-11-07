@@ -76,6 +76,8 @@ function readBody(req) {
   assert.strictEqual(p1.status, "open-tool-listing", "匿名 tools/list 应判 open-tool-listing，实际 " + JSON.stringify(p1));
   assert.strictEqual(p1.toolsCount, 4);
   assert.deepStrictEqual(p1.toolNames, ["read_file", "run_cmd", "fetch_url", "write_file"]);
+  assert.ok(Array.isArray(p1.tools) && p1.tools.length === 4 && "description" in p1.tools[0],
+    "v0.6: probe 结果应带 tools[].description，实际 " + JSON.stringify(p1.tools));
   assert.ok(p1.latencyMs >= 0 && p1.file === "cfg.json" && p1.server === "open-one");
   assert.strictEqual(p1.transport, "streamable-http", "streamable 传输应标注 transport");
 
@@ -165,6 +167,7 @@ function readBody(req) {
   assert.strictEqual(pL1.transport, "sse", "回退后应标注 sse");
   assert.strictEqual(pL1.toolsCount, 2);
   assert.deepStrictEqual(pL1.toolNames, ["legacy_tool", "legacy_search"]);
+  assert.ok(Array.isArray(pL1.tools) && pL1.tools.length === 2, "v0.6: legacy SSE 结果同样带 tools[]");
   const pL1b = await probeLegacySse({ url: legacyOpen.url, timeout: 2000 });
   assert.strictEqual(pL1b.status, "open-tool-listing", "直探 legacy 也应命中");
 

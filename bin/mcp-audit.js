@@ -9,6 +9,8 @@
  *     --fail-high       exit 1 on any high/critical finding (default: exit 1 on critical only)
  *     --probe           also probe remote (url) servers over HTTP: handshake + anonymous
  *                       tools/list check. Makes real network requests — opt-in only.
+ *     --update-baseline record/refresh the rug-pull baseline (needs --probe); every
+ *                       later --probe run diffs tool descriptions against it
  *     --timeout <ms>    probe timeout in milliseconds (default 5000)
  *     --version         print version and exit
  *     --help            show usage and exit
@@ -24,9 +26,12 @@ const { resolveTargets, loadAll } = require("../lib/scan");
 const { auditAll, sortFindings, scoreFindings } = require("../lib/rules");
 const { toSarif } = require("../lib/sarif");
 const { probeAll, probeFindings } = require("../lib/probe");
+const { poisonFindings } = require("../lib/poison");
+const { shadowFindings } = require("../lib/shadow");
+const { BASELINE_FILE, buildBaseline, diffBaseline, readBaseline, writeBaseline } = require("../lib/baseline");
 
 const KNOWN_FLAGS = new Set([
-  "--json", "--sarif", "--fail-high", "--probe", "--timeout", "--help", "--version",
+  "--json", "--sarif", "--fail-high", "--probe", "--update-baseline", "--timeout", "--help", "--version",
 ]);
 
 function parseArgs(argv) {
@@ -73,6 +78,7 @@ Usage: mcp-audit [options] [files...]
   --sarif           SARIF 2.1.0 output (GitHub code scanning compatible)
   --fail-high       exit 1 on any high/critical finding (default: critical only)
   --probe           live-probe remote (url) servers: handshake + anonymous tools/list
+  --update-baseline record/refresh the rug-pull baseline (needs --probe)
   --timeout <ms>    probe timeout in milliseconds (default 5000)
   --version         print version and exit
   --help            show this help
@@ -106,14 +112,41 @@ threshold · 2 fatal (unknown flag, missing or unparsable explicit file).`);
   let probes = [];
   if (probeMode) {
     probes = await probeAll(parsed, { timeout });
-    result.findings = sortFindings([...findings, ...probeFindings(probes)]);
+    result.findings = sortFindings([
+      ...findings,
+      ...probeFindings(probes),
+      ...poisonFindings(probes),
+      ...shadowFindings(probes),
+    ]);
     Object.assign(result, scoreFindings(result.findings));
+  }
+
+  // Rug-pull baseline (v0.6): --update-baseline records the tool lists; every
+  // later --probe run diffs descriptions against it (change → high).
+  const updateBaseline = flags.has("--update-baseline");
+  if (updateBaseline && !probeMode) {
+    const err = new Error("--update-baseline needs --probe (tool lists come from the live tools/list)");
+    err.clean = true;
+    throw err;
+  }
+  if (probeMode && updateBaseline) {
+    writeBaseline(buildBaseline(probes));
+    console.error("mcp-audit: baseline written to " + BASELINE_FILE);
+  } else if (probeMode) {
+    const baseline = readBaseline();
+    if (baseline) {
+      result.findings = sortFindings([...result.findings, ...diffBaseline(baseline, probes)]);
+      Object.assign(result, scoreFindings(result.findings));
+    } else if (probes.some((p) => Array.isArray(p.tools) && p.tools.length > 0)) {
+      console.error(`mcp-audit: no baseline at ${BASELINE_FILE} — run once with --update-baseline to enable rug-pull detection`);
+    }
   }
 
   if (sarifMode) {
     console.log(JSON.stringify(toSarif(parsed, result)));
   } else if (jsonMode) {
     console.log(JSON.stringify({
+      outputVersion: 2,
       files: parsed.map((f) => f.file),
       serverCount,
       findings: result.findings,

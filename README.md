@@ -11,6 +11,7 @@ A **zero-dependency** CLI that audits Model Context Protocol (MCP) server config
 
 - 🔍 **Discovers configs from 10+ MCP clients** (Claude Desktop/Code, Cursor, VS Code, Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, Codex CLI)
 - 🧪 **Live probing** (`--probe`): MCP handshake + anonymous `tools/list` check over streamable HTTP **and** legacy SSE
+- 🧬 **Tool poisoning & shadowing** (v0.6, with `--probe`): instruction-injection / invisible-Unicode / collector-URL heuristics over tool descriptions, cross-server tool-name shadowing, and a hash-pinned rug-pull baseline (`--update-baseline`)
 - 📤 **SARIF 2.1.0** output with stable fingerprints and real source line numbers — uploads straight to GitHub code scanning
 - 🧰 **GitHub Action** included (composite, SARIF upload built in)
 - 📦 **Zero dependencies**, Node ≥ 18, runs offline
@@ -34,6 +35,7 @@ node bin/mcp-audit.js --json cfg.json    # machine-readable
 node bin/mcp-audit.js --sarif cfg.json   # SARIF 2.1.0 (GitHub code scanning)
 node bin/mcp-audit.js --fail-high        # exit 1 on high findings too
 node bin/mcp-audit.js --probe cfg.json   # live-probe remote (url) servers
+node bin/mcp-audit.js --probe --update-baseline cfg.json   # record tool hashes; later runs flag rug-pulls
 node bin/mcp-audit.js --version
 node bin/mcp-audit.js --help                     # usage + exit codes
 ```
@@ -78,6 +80,26 @@ For every server entry with an http(s) `url`, mcp-audit walks the transport ladd
 
 Probing **never sends credentials** — it observes exactly what an anonymous client can reach. Requests are sequential, single-shot, timeout-configurable. Probe findings use the same shape as static findings, so scoring, SARIF and exit codes work unchanged.
 
+## Tool poisoning, shadowing & rug-pull (v0.6, with `--probe`)
+
+Everything below runs on the tool lists captured by `--probe` (name + description per tool, descriptions capped at 4 KB, 50 tools per server) and reuses the same finding/scoring/SARIF pipeline:
+
+| Rule | Severity | Meaning |
+|---|---|---|
+| tool-description-injection | high | description reads like instructions to the agent ("ignore previous instructions", secret-grabbing directives, …) |
+| tool-description-unicode | high | zero-width / bidi / Unicode-tag characters hiding text from the human approving the tool |
+| tool-description-exfil-url | high | description embeds a URL on a known collector host (webhook.site, pastebins, bot APIs, …) |
+| tool-description-external-url | medium | description embeds a URL on a different host — often a legit docs link; judged by a human |
+| tool-description-imperative | medium | multiple ALL-CAPS directive markers — the usual shell around injected text |
+| cross-server-tool-shadowing | high | two or more servers expose the same tool name (the cross-server cascade class; Invariant measured 72% of multi-server setups exposed) |
+| tool-description-changed | high | rug-pull: tool kept its name but its description changed since the baseline |
+| tool-removed | medium | tool disappeared since the baseline |
+| tool-added | info | new tool since the baseline |
+
+**Rug-pull baseline**: run once with `--update-baseline` to write `.mcp-audit-baseline.json` (hash-pinned tool lists; commit it to the repo). Every later `--probe` run diffs against it. Server keys use config filename + server name, so a baseline compares equal across machines and CI runners.
+
+Description heuristics run only on model-facing tool descriptions (never on your config text), and each check fires at most once per tool per category.
+
 ## Static rules (v0.5)
 
 | Rule | Severity | Meaning |
@@ -91,7 +113,7 @@ Probing **never sends credentials** — it observes exactly what an anonymous cl
 | wildcard-filesystem-arg | medium | glob in filesystem args |
 | duplicate-definition | info | same server defined in multiple files |
 
-Probe rules: `open-tool-listing` (medium), `remote-unreachable` (low), `remote-not-mcp` (low).
+Probe rules: `open-tool-listing` (medium), `remote-unreachable` (low), `remote-not-mcp` (low) — plus the poisoning/shadowing/baseline rules above.
 
 Scoring: 100 minus deductions (critical −40 / high −20 / medium −10 / low −5); A ≥ 90 > B ≥ 75 > C ≥ 60 > D ≥ 40 > F.
 
@@ -102,7 +124,7 @@ Scoring: 100 minus deductions (critical −40 / high −20 / medium −10 / low 
 ## Tests
 
 ```bash
-npm test   # rule anchors + fixture scoring (clean→A/100, dirty→F/≤40) + SARIF + probe engine + discovery/parsers
+npm test   # rule anchors + fixture scoring (clean→A/100, dirty→F/≤40) + SARIF + probe engine + discovery/parsers + CLI exit codes + poisoning/shadowing/baseline (incl. CLI e2e)
 ```
 
 All offline: probe behavior is covered by a local Node `http` server (streamable 8 scenarios + legacy SSE 7 scenarios), parsers are pure-function unit tests.
@@ -113,8 +135,9 @@ All offline: probe behavior is covered by a local Node `http` server (streamable
 - [x] v0.3 — remote probing (streamable HTTP) + `headers` secret check
 - [x] v0.4 — legacy SSE (2024-11-05) probing
 - [x] v0.5 — multi-client discovery, SARIF fingerprints & line numbers, JSONC/TOML parsing, English docs
-- [ ] tool-description poisoning / shadowing heuristics; rug-pull baseline (hash tools between runs)
-- [ ] `.mcp-audit.json` — ignores/suppressions, severity overrides
+- [x] v0.5.1 — SARIF uploads on findings-gate failure, fatal on bad explicit paths, `--help` & strict flags
+- [x] v0.6 — tool-description poisoning, cross-server shadowing, rug-pull baseline (`--update-baseline`)
+- [ ] supply-chain depth (uvx/bunx/pnpm-dlx unpinned, secrets entropy) + `.mcp-audit.json` — ignores/suppressions, severity overrides
 - [ ] npm publish (name reserved: `mcp-config-scan`) with provenance
 - [ ] JetBrains client support (XML configs)
 
@@ -122,5 +145,6 @@ All offline: probe behavior is covered by a local Node `http` server (streamable
 
 - Static heuristics can miss or mis-fire; issue reports welcome.
 - Probing does not judge what a tool does at runtime — whether a tool is dangerous needs human review.
+- The rug-pull baseline is only as good as its origin: record it from a trusted state, and a poisoned first sighting becomes the norm.
 - `--probe` makes real network requests; only point it at endpoints you have the right to test.
 - JetBrains clients use XML configs — not yet supported.
