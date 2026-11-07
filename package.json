@@ -1,18 +1,19 @@
 {
   "name": "mcp-config-scan",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Audit Model Context Protocol (MCP) server configs for security risks: secrets on disk, over-broad filesystem access, unpinned packages, insecure transport, pipe-to-shell installs — plus opt-in live probing of remote MCP endpoints (anonymous tool listing, reachability, handshake health). Discovers configs from Claude Desktop/Code, Cursor, VS Code, Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, and Codex CLI.",
   "bin": {
     "mcp-audit": "bin/mcp-audit.js"
   },
   "scripts": {
-    "test": "node test/rules.test.js && node test/sarif.test.js && node test/probe.test.js && node test/discovery.test.js"
+    "test": "node test/rules.test.js && node test/sarif.test.js && node test/probe.test.js && node test/discovery.test.js && node test/cli.test.js"
   },
   "files": [
     "bin/",
     "lib/",
     "action.yml",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "keywords": [

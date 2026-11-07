@@ -21,3 +21,13 @@ jobs:
           if node bin/mcp-audit.js fixtures/dirty.json > /dev/null; then
             echo "dirty fixture should exit 1"; exit 1
           fi
+      - name: CLI smoke — missing explicit file is fatal (exit 2)
+        run: |
+          if node bin/mcp-audit.js fixtures/no-such-file.json > /dev/null 2>&1; then
+            echo "missing explicit file should exit 2"; exit 1
+          fi
+      - name: CLI smoke — unknown flag is fatal (exit 2)
+        run: |
+          if node bin/mcp-audit.js --sari fixtures/clean.json > /dev/null 2>&1; then
+            echo "unknown flag should exit 2"; exit 1
+          fi

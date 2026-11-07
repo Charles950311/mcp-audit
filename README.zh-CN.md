@@ -37,9 +37,10 @@ node bin/mcp-audit.js --fail-high cfg.json  # high 级问题也使退出码为 1
 node bin/mcp-audit.js --probe cfg.json   # 实弹探测：MCP 握手 + 匿名 tools/list 检查
 node bin/mcp-audit.js --probe --timeout 3000 cfg.json
 node bin/mcp-audit.js --version
+node bin/mcp-audit.js --help                     # 用法与退出码
 ```
 
-退出码：存在 critical（或 `--fail-high` 时存在 high）→ 1，否则 0，可直接进 GitHub Actions。
+退出码：`0` = 通过（自动发现模式下 0 命中同样为 0）· `1` = 达到阈值的发现（critical，或 `--fail-high` 时的 high）· `2` = 致命错误（未知参数、显式指定文件缺失或解析失败），可直接进 GitHub Actions。
 
 ## 支持的客户端（自动发现）
 

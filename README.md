@@ -35,9 +35,10 @@ node bin/mcp-audit.js --sarif cfg.json   # SARIF 2.1.0 (GitHub code scanning)
 node bin/mcp-audit.js --fail-high        # exit 1 on high findings too
 node bin/mcp-audit.js --probe cfg.json   # live-probe remote (url) servers
 node bin/mcp-audit.js --version
+node bin/mcp-audit.js --help                     # usage + exit codes
 ```
 
-Exit codes: any `critical` (or any `high` with `--fail-high`) → 1, otherwise 0 — drop it straight into CI.
+Exit codes: `0` clean (or nothing found in discovery mode) · `1` findings at threshold (`critical`, or `high` with `--fail-high`) · `2` fatal (unknown flag, missing or unparsable explicit file) — drop it straight into CI.
 
 ## Supported clients (auto-discovery)
 

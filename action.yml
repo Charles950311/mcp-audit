@@ -33,16 +33,37 @@ runs:
       with:
         node-version: 20
 
+    # continue-on-error so a findings-gate failure cannot skip the SARIF upload
+    # below — the report matters most exactly when the gate trips (v0.5.1 fix).
     - name: Run mcp-audit
+      id: audit
       shell: bash
+      continue-on-error: true
+      env:
+        MCP_AUDIT_FAIL_HIGH: ${{ inputs.fail-high }}
+        MCP_AUDIT_PROBE: ${{ inputs.probe }}
+        MCP_AUDIT_TIMEOUT: ${{ inputs.timeout }}
+        MCP_AUDIT_FILES: ${{ inputs.files }}
       run: |
         FLAGS=""
-        if [ "${{ inputs.fail-high }}" = "true" ]; then FLAGS="$FLAGS --fail-high"; fi
-        if [ "${{ inputs.probe }}" = "true" ]; then FLAGS="$FLAGS --probe --timeout ${{ inputs.timeout }}"; fi
-        node "${{ github.action_path }}/bin/mcp-audit.js" $FLAGS --sarif ${{ inputs.files }} > mcp-audit.sarif
+        if [ "$MCP_AUDIT_FAIL_HIGH" = "true" ]; then FLAGS="$FLAGS --fail-high"; fi
+        if [ "$MCP_AUDIT_PROBE" = "true" ]; then FLAGS="$FLAGS --probe --timeout $MCP_AUDIT_TIMEOUT"; fi
+        # word splitting on MCP_AUDIT_FILES is intentional (space-separated list)
+        # shellcheck disable=SC2086
+        node "$GITHUB_ACTION_PATH/bin/mcp-audit.js" $FLAGS --sarif $MCP_AUDIT_FILES > mcp-audit.sarif
+        echo "exitcode=$?" >> "$GITHUB_OUTPUT"
 
     - name: Upload SARIF
-      if: inputs.upload-sarif == 'true'
+      if: ${{ !cancelled() && inputs.upload-sarif == 'true' }}
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: mcp-audit.sarif
+
+    - name: Enforce findings gate
+      if: ${{ steps.audit.outputs.exitcode != '0' }}
+      shell: bash
+      env:
+        MCP_AUDIT_EXITCODE: ${{ steps.audit.outputs.exitcode }}
+      run: |
+        echo "::error::mcp-audit found high/critical issues (exit $MCP_AUDIT_EXITCODE); SARIF was still uploaded above."
+        exit "$MCP_AUDIT_EXITCODE"

@@ -11,15 +11,23 @@
  *                       tools/list check. Makes real network requests — opt-in only.
  *     --timeout <ms>    probe timeout in milliseconds (default 5000)
  *     --version         print version and exit
+ *     --help            show usage and exit
  *
  * With no file arguments, discovers configs for Claude Desktop/Code, Cursor,
  * VS Code, Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, and Codex CLI.
+ *
+ * Exit codes: 0 clean (or nothing found in discovery mode) · 1 findings at/above
+ * threshold · 2 fatal (unknown flag, missing or unparsable explicit file).
  */
 const pkg = require("../package.json");
 const { resolveTargets, loadAll } = require("../lib/scan");
 const { auditAll, sortFindings, scoreFindings } = require("../lib/rules");
 const { toSarif } = require("../lib/sarif");
 const { probeAll, probeFindings } = require("../lib/probe");
+
+const KNOWN_FLAGS = new Set([
+  "--json", "--sarif", "--fail-high", "--probe", "--timeout", "--help", "--version",
+]);
 
 function parseArgs(argv) {
   const flags = new Set();
@@ -28,8 +36,14 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--timeout") timeout = parseInt(argv[++i], 10) || 5000;
-    else if (a.startsWith("--")) flags.add(a);
-    else targets.push(a);
+    else if (a.startsWith("--")) {
+      if (!KNOWN_FLAGS.has(a)) {
+        const err = new Error("unknown flag '" + a + "' (run with --help for usage)");
+        err.clean = true;
+        throw err;
+      }
+      flags.add(a);
+    } else targets.push(a);
   }
   return { flags, targets, timeout };
 }
@@ -50,6 +64,26 @@ async function main() {
     console.log(pkg.version);
     return 0;
   }
+  if (flags.has("--help")) {
+    console.log(`mcp-audit ${pkg.version} — audit MCP server configs for security risks
+
+Usage: mcp-audit [options] [files...]
+
+  --json            machine-readable JSON output
+  --sarif           SARIF 2.1.0 output (GitHub code scanning compatible)
+  --fail-high       exit 1 on any high/critical finding (default: critical only)
+  --probe           live-probe remote (url) servers: handshake + anonymous tools/list
+  --timeout <ms>    probe timeout in milliseconds (default 5000)
+  --version         print version and exit
+  --help            show this help
+
+With no files, discovers configs for Claude Desktop/Code, Cursor, VS Code,
+Windsurf, Gemini CLI, Cline, Roo Code, Continue, Zed, and Codex CLI.
+
+Exit codes: 0 clean (or nothing found in discovery mode) · 1 findings at/above
+threshold · 2 fatal (unknown flag, missing or unparsable explicit file).`);
+    return 0;
+  }
   const jsonMode = flags.has("--json");
   const sarifMode = flags.has("--sarif");
   const failHigh = flags.has("--fail-high");
@@ -64,7 +98,7 @@ async function main() {
     return 0;
   }
 
-  const parsed = loadAll(files);
+  const parsed = loadAll(files, targets.length > 0);
   const result = auditAll(parsed);
   const { findings, score, grade } = result;
   const serverCount = parsed.reduce((s, f) => s + f.servers.length, 0);
@@ -94,7 +128,8 @@ async function main() {
     }
     for (const f of result.findings) {
       const tag = f.severity.toUpperCase().padEnd(8);
-      console.log(`[${tag}] ${f.server}: ${f.rule} → ${f.match}`);
+      const where = f.file ? f.file + " · " : "";
+      console.log(`[${tag}] ${where}${f.server}: ${f.rule} → ${f.match}`);
       console.log(`           ${f.detail}\n`);
     }
     if (probeMode) {
@@ -121,7 +156,7 @@ async function main() {
 main().then(
   (code) => process.exit(code),
   (e) => {
-    console.error("mcp-audit: fatal: " + (e && e.stack || e));
+    console.error("mcp-audit: fatal: " + (e && e.clean ? e.message : (e && e.stack) || e));
     process.exit(2);
   }
 );
