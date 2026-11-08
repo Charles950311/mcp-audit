@@ -6,7 +6,7 @@
     },
     "fetch": {
       "command": "uvx",
-      "args": ["mcp-server-fetch"]
+      "args": ["mcp-server-fetch==1.2.0"]
     },
     "remote-api": {
       "url": "https://mcp.example.com/sse"

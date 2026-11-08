@@ -36,6 +36,7 @@ node bin/mcp-audit.js --sarif cfg.json   # SARIF 2.1.0 (GitHub code scanning)
 node bin/mcp-audit.js --fail-high        # exit 1 on high findings too
 node bin/mcp-audit.js --probe cfg.json   # live-probe remote (url) servers
 node bin/mcp-audit.js --probe --update-baseline cfg.json   # record tool hashes; later runs flag rug-pulls
+node bin/mcp-audit.js --config audit.json cfg.json         # ignore rules + severity overrides
 node bin/mcp-audit.js --version
 node bin/mcp-audit.js --help                     # usage + exit codes
 ```
@@ -109,7 +110,8 @@ Description heuristics run only on model-facing tool descriptions (never on your
 | plaintext-secret | high | credential-looking values in `env` **or `headers`** (raw `${VAR}` references exempt) |
 | insecure-remote-url | high | remote server over plain `http://` (loopback exempt) |
 | elevated-privileges | high | `sudo`/`doas` |
-| unpinned-npx-package | medium | npx resolves unpinned packages at every launch |
+| unpinned-package | medium | npx / bunx / uvx / pnpm dlx / yarn dlx / uv --with resolve unpinned npm **or PyPI** packages at every launch |
+| entropy-secret | medium | long random-looking env/header value (Shannon ≥ 3.5) under a non-secret key name — often a credential hiding in plain sight |
 | wildcard-filesystem-arg | medium | glob in filesystem args |
 | duplicate-definition | info | same server defined in multiple files |
 
@@ -117,9 +119,24 @@ Probe rules: `open-tool-listing` (medium), `remote-unreachable` (low), `remote-n
 
 Scoring: 100 minus deductions (critical −40 / high −20 / medium −10 / low −5); A ≥ 90 > B ≥ 75 > C ≥ 60 > D ≥ 40 > F.
 
+## Config (v0.7): suppressions & severity overrides
+
+One CI misfire must not stay red forever. Drop a `.mcp-audit.json` in the working directory (or pass `--config path`):
+
+```json
+{
+  "ignore": [ { "rule": "plaintext-secret", "path": "**/.claude.json", "server": "legacy-*" } ],
+  "severityOverrides": { "wildcard-filesystem-arg": "low" }
+}
+```
+
+- `path` / `server` are mini-globs: `**` matches any path segments, `*` one segment.
+- Suppressions and overrides are logged to stderr, so CI output stays auditable.
+- The GitHub Action accepts a `config` input; an explicit `--config` that cannot be loaded is fatal (exit 2).
+
 ## GitHub Action
 
-`action.yml` is a composite action: point any repo at it (`examples/user-workflow.yml` has a ready template) to run the audit and upload SARIF to code scanning. Inputs: `files`, `fail-high`, `probe`, `timeout`, `upload-sarif`. `npm test` runs in this repo's CI (`.github/workflows/ci.yml`).
+`action.yml` is a composite action: point any repo at it (`examples/user-workflow.yml` has a ready template) to run the audit and upload SARIF to code scanning. Inputs: `files`, `fail-high`, `probe`, `config`, `timeout`, `upload-sarif`. `npm test` runs in this repo's CI (`.github/workflows/ci.yml`).
 
 ## Tests
 
@@ -137,7 +154,8 @@ All offline: probe behavior is covered by a local Node `http` server (streamable
 - [x] v0.5 — multi-client discovery, SARIF fingerprints & line numbers, JSONC/TOML parsing, English docs
 - [x] v0.5.1 — SARIF uploads on findings-gate failure, fatal on bad explicit paths, `--help` & strict flags
 - [x] v0.6 — tool-description poisoning, cross-server shadowing, rug-pull baseline (`--update-baseline`)
-- [ ] supply-chain depth (uvx/bunx/pnpm-dlx unpinned, secrets entropy) + `.mcp-audit.json` — ignores/suppressions, severity overrides
+- [x] v0.7 — supply-chain depth (unpinned npx/bunx/uvx/pnpm-dlx/yarn-dlx/uv, npm + PyPI pin syntax), secrets hardening (token-format anchors, `DATABASE_URL`-style connection strings, entropy), `.mcp-audit.json` suppressions & severity overrides
+- [ ] npm publish (name reserved: `mcp-config-scan`) with provenance
 - [ ] npm publish (name reserved: `mcp-config-scan`) with provenance
 - [ ] JetBrains client support (XML configs)
 

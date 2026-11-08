@@ -17,6 +17,10 @@ inputs:
     description: "Live-probe remote (url) servers over HTTP: MCP handshake + anonymous tools/list check. Makes real network requests from the runner."
     required: false
     default: "false"
+  config:
+    description: "Path to a .mcp-audit.json (ignore rules + severity overrides). Empty = use ./.mcp-audit.json if present."
+    required: false
+    default: ""
   timeout:
     description: "Probe timeout in milliseconds (used with probe)."
     required: false
@@ -44,10 +48,12 @@ runs:
         MCP_AUDIT_PROBE: ${{ inputs.probe }}
         MCP_AUDIT_TIMEOUT: ${{ inputs.timeout }}
         MCP_AUDIT_FILES: ${{ inputs.files }}
+        MCP_AUDIT_CONFIG: ${{ inputs.config }}
       run: |
         FLAGS=""
         if [ "$MCP_AUDIT_FAIL_HIGH" = "true" ]; then FLAGS="$FLAGS --fail-high"; fi
         if [ "$MCP_AUDIT_PROBE" = "true" ]; then FLAGS="$FLAGS --probe --timeout $MCP_AUDIT_TIMEOUT"; fi
+        if [ -n "$MCP_AUDIT_CONFIG" ]; then FLAGS="$FLAGS --config $MCP_AUDIT_CONFIG"; fi
         # word splitting on MCP_AUDIT_FILES is intentional (space-separated list)
         # shellcheck disable=SC2086
         node "$GITHUB_ACTION_PATH/bin/mcp-audit.js" $FLAGS --sarif $MCP_AUDIT_FILES > mcp-audit.sarif

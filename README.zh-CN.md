@@ -37,6 +37,7 @@ node bin/mcp-audit.js --sarif cfg.json   # SARIF 2.1.0（GitHub code scanning �
 node bin/mcp-audit.js --fail-high cfg.json  # high 级问题也使退出码为 1
 node bin/mcp-audit.js --probe cfg.json   # 实弹探测：MCP 握手 + 匿名 tools/list 检查
 node bin/mcp-audit.js --probe --update-baseline cfg.json   # 记录工具哈希；之后每次探测自动比对 rug-pull
+node bin/mcp-audit.js --config audit.json cfg.json         # 豁免规则 + severity 覆盖
 node bin/mcp-audit.js --probe --timeout 3000 cfg.json
 node bin/mcp-audit.js --version
 node bin/mcp-audit.js --help                     # 用法与退出码
@@ -111,7 +112,8 @@ node bin/mcp-audit.js --help                     # 用法与退出码
 | plaintext-secret | high | env / headers 中疑似凭据明文落盘（`${VAR}` 引用则豁免） |
 | insecure-remote-url | high | 远程服务走明文 http://（127.0.0.1/localhost 豁免） |
 | elevated-privileges | high | sudo/doas 提权运行 |
-| unpinned-npx-package | medium | npx 未锁版本，每次启动解析到最新版 |
+| unpinned-package | medium | npx / bunx / uvx / pnpm dlx / yarn dlx / uv --with 每次启动解析未锁版本的 npm **或 PyPI** 包 |
+| entropy-secret | medium | 键名不含 secret 但值高熵（Shannon ≥ 3.5）、形似凭据的长随机串 |
 | wildcard-filesystem-arg | medium | 路径参数含通配符 |
 | duplicate-definition | info | 同一 server 在多个配置文件重复定义 |
 
@@ -119,9 +121,24 @@ node bin/mcp-audit.js --help                     # 用法与退出码
 
 评分：100 起扣（critical −40 / high −20 / medium −10 / low −5），A ≥ 90 > B ≥ 75 > C ≥ 60 > D ≥ 40 > F。
 
+## 配置（v0.7）：豁免与降级
+
+一条误报不该让 CI 永久红。在工作目录放 `.mcp-audit.json`（或传 `--config 路径`）：
+
+```json
+{
+  "ignore": [ { "rule": "plaintext-secret", "path": "**/.claude.json", "server": "legacy-*" } ],
+  "severityOverrides": { "wildcard-filesystem-arg": "low" }
+}
+```
+
+- `path` / `server` 是迷你 glob：`**` 匹配任意路径段，`*` 匹配单段。
+- 豁免与降级都会打到 stderr，CI 输出可审计。
+- GitHub Action 支持 `config` 输入；显式 `--config` 加载失败属 fatal（exit 2）。
+
 ## GitHub Action
 
-`action.yml` 是 composite action：克隆本仓库后即可在其他仓库中使用（`examples/user-workflow.yml` 有用户侧模板），自动运行审计并把 SARIF 上传到 code scanning。输入项：`files`、`fail-high`、`probe`、`timeout`、`upload-sarif`。`npm test` 由本仓库 CI（`.github/workflows/ci.yml`）执行。
+`action.yml` 是 composite action：克隆本仓库后即可在其他仓库中使用（`examples/user-workflow.yml` 有用户侧模板），自动运行审计并把 SARIF 上传到 code scanning。输入项：`files`、`fail-high`、`probe`、`config`、`timeout`、`upload-sarif`。`npm test` 由本仓库 CI（`.github/workflows/ci.yml`）执行。
 
 ## 测试
 
@@ -139,7 +156,7 @@ npm test   # 规则锚点 + fixtures 评分（clean→A/100，dirty→F/≤40）
 - [x] v0.5 — 多客户端发现、SARIF 指纹与行号、JSONC/TOML 解析、英文文档
 - [x] v0.5.1 — 告警触发时 SARIF 仍上传、坏路径/未知参数 fatal、`--help` 与严格参数
 - [x] v0.6 — 工具描述投毒、跨服务器遮蔽、rug-pull 基线（`--update-baseline`）
-- [ ] 供应链深化（uvx/bunx/pnpm dlx 未锁版本、secrets 熵检测）+ `.mcp-audit.json` — ignore/抑制、severity 覆盖
+- [x] v0.7 — 供应链深化（npx/bunx/uvx/pnpm dlx/yarn dlx/uv 未锁版本，npm + PyPI 锁版本语法）、secrets 强化（令牌格式锚点、`DATABASE_URL` 类连接串、熵检测）、`.mcp-audit.json` 豁免与 severity 覆盖
 - [ ] npm 发布（包名 `mcp-config-scan` 已检重，带 provenance）
 - [ ] JetBrains 客户端支持（XML 配置）
 

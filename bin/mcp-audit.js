@@ -11,6 +11,8 @@
  *                       tools/list check. Makes real network requests — opt-in only.
  *     --update-baseline record/refresh the rug-pull baseline (needs --probe); every
  *                       later --probe run diffs tool descriptions against it
+ *     --config <path>   .mcp-audit.json: ignore rules + severity overrides
+ *                       (default: ./.mcp-audit.json when present)
  *     --timeout <ms>    probe timeout in milliseconds (default 5000)
  *     --version         print version and exit
  *     --help            show usage and exit
@@ -29,18 +31,21 @@ const { probeAll, probeFindings } = require("../lib/probe");
 const { poisonFindings } = require("../lib/poison");
 const { shadowFindings } = require("../lib/shadow");
 const { BASELINE_FILE, buildBaseline, diffBaseline, readBaseline, writeBaseline } = require("../lib/baseline");
+const { readConfig, applyConfig } = require("../lib/config");
 
 const KNOWN_FLAGS = new Set([
-  "--json", "--sarif", "--fail-high", "--probe", "--update-baseline", "--timeout", "--help", "--version",
+  "--json", "--sarif", "--fail-high", "--probe", "--update-baseline", "--config", "--timeout", "--help", "--version",
 ]);
 
 function parseArgs(argv) {
   const flags = new Set();
   const targets = [];
   let timeout = 5000;
+  let configPath = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--timeout") timeout = parseInt(argv[++i], 10) || 5000;
+    else if (a === "--config") configPath = argv[++i] || "";
     else if (a.startsWith("--")) {
       if (!KNOWN_FLAGS.has(a)) {
         const err = new Error("unknown flag '" + a + "' (run with --help for usage)");
@@ -50,7 +55,7 @@ function parseArgs(argv) {
       flags.add(a);
     } else targets.push(a);
   }
-  return { flags, targets, timeout };
+  return { flags, targets, timeout, configPath };
 }
 
 const PROBE_LABELS = {
@@ -64,7 +69,7 @@ const PROBE_LABELS = {
 };
 
 async function main() {
-  const { flags, targets, timeout } = parseArgs(process.argv.slice(2));
+  const { flags, targets, timeout, configPath } = parseArgs(process.argv.slice(2));
   if (flags.has("--version")) {
     console.log(pkg.version);
     return 0;
@@ -79,6 +84,7 @@ Usage: mcp-audit [options] [files...]
   --fail-high       exit 1 on any high/critical finding (default: critical only)
   --probe           live-probe remote (url) servers: handshake + anonymous tools/list
   --update-baseline record/refresh the rug-pull baseline (needs --probe)
+  --config <path>   .mcp-audit.json: ignore rules + severity overrides
   --timeout <ms>    probe timeout in milliseconds (default 5000)
   --version         print version and exit
   --help            show this help
@@ -140,6 +146,16 @@ threshold · 2 fatal (unknown flag, missing or unparsable explicit file).`);
     } else if (probes.some((p) => Array.isArray(p.tools) && p.tools.length > 0)) {
       console.error(`mcp-audit: no baseline at ${BASELINE_FILE} — run once with --update-baseline to enable rug-pull detection`);
     }
+  }
+
+  // .mcp-audit.json（v0.7）：豁免与降级——一条误报不再让 CI 永久红
+  const cfg = readConfig(configPath || null);
+  if (cfg) {
+    const applied = applyConfig(result.findings, cfg);
+    result.findings = sortFindings(applied.findings);
+    if (applied.suppressed) console.error(`mcp-audit: config ${cfg.source}: ${applied.suppressed} finding(s) suppressed by ignore rules`);
+    if (applied.overridden) console.error(`mcp-audit: config ${cfg.source}: ${applied.overridden} severity override(s) applied`);
+    Object.assign(result, scoreFindings(result.findings));
   }
 
   if (sarifMode) {
